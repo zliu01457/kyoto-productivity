@@ -300,3 +300,104 @@ df_kyoto_within_shares = pd.DataFrame({
 assert np.isclose(df_kyoto_within_shares["Share_of_Total_Within_Percent"].sum(), 100.0)
 print("\nTop 5 Industries by Share of Within Effect:")
 print(df_kyoto_within_shares.head(5).round(2))
+#====================================================================================================
+# PANEL DATA CONSTRUCTION (INDUSTRY-YEAR)
+#====================================================================================================
+# The decomposition shows that productivity growth came from within industries.
+# Electrical machinery contributed the most. But the decomposition does not explain what generated these gains.
+# Prior studies suggest automation as a poential driver.  
+# If automation drove these gains, industries that automated more should have experienced faster TFP growth.
+# The R-JIP database has no direct measure of automation. I therefore use capital deepening as a proxy. 
+# Testing this requires variation across industries and over time. I therefore construct an industry-year panel for Kyoto.
+exact_industry_mapping = {
+    "Food and beverages": "Food and beverages",
+    "Textile mill products": "Textile mill products",
+    "Pulp and paper": "Pulp and paper",
+    "Chemicals": "Chemicals",
+    "Petroleum and coal products": "Petroleum and coal products",
+    "Ceramics, stone and clay": "Ceramics, stone and clay",
+    "Basic metal": "Basic metal",
+    "Processed metals": "Processed metals",
+    "General machinery": "General machinery",
+    "Electrical machinery": "Electrical machinery",
+    "Transport equipment": "Transport equipment",
+    "Precision instruments": "Precision instruments",
+    "Other manufacturing": "Other manufacturing"
+}
+
+# Real Value Added used to construct TFP and output growth
+# Net Capital Stock used to construct TFP and capital deepening.
+# Man-hours used to measures labor input and is used to construct TFP. 
+# Nominal Value Added provides the denominator for calculating the labor share,alhpa
+# Labor Costs is the numerator for calculating the labor share, alpha.
+# Number of Employed Persons is used to calculate capital per worker K/N, which serves as a proxy for automation
+# Quality of Capital serves as an alternative proxy for automation in the regression analysis.
+sheets_to_process = {
+    "Real value added (RV)": "Y_Real_Value_Added",
+    "Net capital stock (KT)": "K_Net_Capital",
+    "Man-hours (MH)": "L_Man_Hours",
+    "Nominal value added (NV)": "NV_Nominal_Value_Added",
+    "Labor costs (WL)": "WL_Labor_Costs",
+    "Number of employed persons (N)": "E_Employed_Persons",
+    "Quality of capital (QK)": "QK_Capital_Quality"
+}
+
+kyoto_panel_melted_dataframes = []
+
+for excel_sheet_name, target_variable_name in sheets_to_process.items():
+    # Reuse previously loaded sheets and read the remaining sheets directly.
+    if excel_sheet_name == "Real value added (RV)":
+        df_sheet_raw = df_real_value_added
+    elif excel_sheet_name == "Net capital stock (KT)":
+        df_sheet_raw = df_capital_stock
+    elif excel_sheet_name == "Man-hours (MH)":
+        df_sheet_raw = df_man_hours
+    elif excel_sheet_name == "Nominal value added (NV)":
+        df_sheet_raw = df_nominal_value_added
+    elif excel_sheet_name == "Labor costs (WL)":
+        df_sheet_raw = df_labor_cost
+    else:
+        df_sheet_raw = pd.read_excel(excel_file, sheet_name=excel_sheet_name, header=2)
+    
+    df_kyoto_filtered = df_sheet_raw[
+        (df_sheet_raw.iloc[:, 1] == "Kyoto") & (df_sheet_raw.iloc[:, 2] != "T")
+    ].copy()
+    
+    # Standardize industry names and retain only the 13 target manufacturing industries.
+    df_kyoto_filtered["Raw_Industry_Name"] = df_kyoto_filtered.iloc[:, 3].astype(str).str.strip()
+    df_kyoto_filtered["Industry"] = df_kyoto_filtered["Raw_Industry_Name"].map(exact_industry_mapping)
+    df_kyoto_filtered = df_kyoto_filtered.dropna(subset=["Industry"])
+    
+     # Verify that every required year is available
+    missing_years = [yr for yr in years_range if yr not in df_kyoto_filtered.columns]
+    assert not missing_years, f"Sheet '{excel_sheet_name}' is missing expected year columns: {missing_years}"
+    
+    # industry-year panel
+    df_industry_year_long = df_kyoto_filtered[["Industry"] + years_range].melt(
+        id_vars=["Industry"], value_vars=years_range, var_name="Year", value_name=target_variable_name
+    )
+    df_industry_year_long["Year"] = df_industry_year_long["Year"].astype(int)
+    
+    assert not df_industry_year_long.duplicated(subset=["Industry", "Year"]).any(), \
+        f"Duplicate Industry-Year pairs detected in sheet '{excel_sheet_name}'!"
+  # Index by industry and year       
+    df_industry_year_long = df_industry_year_long.set_index(["Industry", "Year"])
+    kyoto_panel_melted_dataframes.append(df_industry_year_long)
+
+kyoto_manufacturing_panel = pd.concat(kyoto_panel_melted_dataframes, axis=1).reset_index()
+kyoto_manufacturing_panel = kyoto_manufacturing_panel.sort_values(by=["Industry", "Year"]).reset_index(drop=True)
+
+# Final sanity check 
+# total number of observations matches the expected number of industries multiplied by the number of years.
+# Verify that all 13 target manufacturing industries are represented in the panel
+# Ensure that each industry-year pair appears only once in the panel
+# Verify that all seven variables contain no missing values across the panel
+assert len(kyoto_manufacturing_panel) == len(exact_industry_mapping) * len(years_range), \
+    "Panel row count mismatch! Check industry filtering or year span."
+assert kyoto_manufacturing_panel["Industry"].nunique() == 13
+assert not kyoto_manufacturing_panel.duplicated(
+    subset=["Industry", "Year"]
+).any()
+assert not kyoto_manufacturing_panel[
+    list(sheets_to_process.values())
+].isna().any().any()

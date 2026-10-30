@@ -3,24 +3,27 @@ import numpy as np
 import statsmodels.formula.api as smf
 
 excel_file = "R-JIP2017_180424-2.xlsx"  
+# Define the analysis years in advance for 1992–2012 decomposition
+# and panel data construction.
 years_range = list(range(1992, 2013))  
 n = 20                                
 
 # Growth Accounting:
 # This growth accounting is intended as an exploratory exercise.
-# It decomposes Kyoto Prefecture's GDP growth over 1970-2012 into the contributions of capital, labor, and TFP. 
+# It decomposes Kyoto Prefecture's GDP growth over 1972-2012 into the contributions of capital, labor, and TFP. 
 # The results are compared with Tokyo perfecture. 
 # The objective is to develop an initial understanding of the sources of productivity growth and identify economic patterns for later research questions. 
 # To conduct the growth accoutning excercise, I need the follwing variables from the R-JIP excel sheet
-# Y: Real output (Real Value Added, RV) in 1970, 1992, and 2012 for kyoto perfecture and tokyo perfecture 
-# K: Net capital stock (KT) in 1970, 1992, and 2012 for kyoto perfecture and tokyo perfecture
-# L: Labor input (Man-hours, MH) in 1970, 1992, and 2012 for kyoto perfecture and tokyo perfecture
+# Y: Real output (Real Value Added, RV) in 1972, 1992, and 2012 for kyoto perfecture and tokyo perfecture 
+# K: Net capital stock (KT) in 1972, 1992, and 2012 for kyoto perfecture and tokyo perfecture
+# L: Labor input (Man-hours, MH) in 1972, 1992, and 2012 for kyoto perfecture and tokyo perfecture
 # g_Y = (Y_end / Y_start)**(1/n) - 1
 # g_K = (K_end / K_start)**(1/n) - 1
 # g_L = (L_end / L_start)**(1/n) - 1
 # TFP 
 # g_A = g_Y - alpha*g_K - (1-alpha)*g_L
-# I begin with year 1972 becasue okinawa is not part of japn in 1970 and 1971, not have data. for consitantcy, i analysis data from 1972 to 2012, the time spam is 20 year
+# Note: The analysis covers 1972–2012 because prefecture-level data for Okinawa are unavailable for 1970 and 1971. 
+# Starting in 1972 ensures a consistent sample across prefectures and over time.
 # ===========================================================================
 # Extract macroeconomic variables for growth accounting，construct data frame
 df_real_value_added = pd.read_excel(excel_file, sheet_name="Real value added (RV)", header=2)
@@ -44,45 +47,45 @@ kyoto_data = growth_accounting_exercise("Kyoto")
 tokyo_data = growth_accounting_exercise("Tokyo")
 
 kyoto_real_value, kyoto_capital_stock, kyoto_man_hours, kyoto_nominal_value, kyoto_labor_cost = kyoto_data
-kyoto_output_1970 = kyoto_real_value[1970].iloc[0]
+kyoto_output_1972 = kyoto_real_value[1972].iloc[0]
 kyoto_output_1992 = kyoto_real_value[1992].iloc[0]
 kyoto_output_2012 = kyoto_real_value[2012].iloc[0]
 
-kyoto_capital_1970 = kyoto_capital_stock[1970].iloc[0]
+kyoto_capital_1972 = kyoto_capital_stock[1972].iloc[0]
 kyoto_capital_1992 = kyoto_capital_stock[1992].iloc[0]
 kyoto_capital_2012 = kyoto_capital_stock[2012].iloc[0]
 
-kyoto_labor_1970 = kyoto_man_hours[1970].iloc[0]
+kyoto_labor_1972 = kyoto_man_hours[1972].iloc[0]
 kyoto_labor_1992 = kyoto_man_hours[1992].iloc[0]
 kyoto_labor_2012 = kyoto_man_hours[2012].iloc[0]
 
 # Tokyo
 tokyo_real_value, tokyo_capital_stock, tokyo_man_hours, tokyo_nominal_value, tokyo_labor_cost = tokyo_data
 
-tokyo_output_1970 = tokyo_real_value[1970].iloc[0]
+tokyo_output_1972 = tokyo_real_value[1972].iloc[0]
 tokyo_output_1992 = tokyo_real_value[1992].iloc[0]
 tokyo_output_2012 = tokyo_real_value[2012].iloc[0]
 
-tokyo_capital_1970 = tokyo_capital_stock[1970].iloc[0]
+tokyo_capital_1972 = tokyo_capital_stock[1972].iloc[0]
 tokyo_capital_1992 = tokyo_capital_stock[1992].iloc[0]
 tokyo_capital_2012 = tokyo_capital_stock[2012].iloc[0]
 
-tokyo_labor_1970 = tokyo_man_hours[1970].iloc[0]
+tokyo_labor_1972 = tokyo_man_hours[1972].iloc[0]
 tokyo_labor_1992 = tokyo_man_hours[1992].iloc[0]
 tokyo_labor_2012 = tokyo_man_hours[2012].iloc[0]
     
-years_span_first = 1992 - 1970   # 22 years
-years_span_second = 2012 - 1992  # 22 years
+years_span_first = 1992 - 1972   # 20 years
+years_span_second = 2012 - 1992  # 20 years
 
 # We take logs in growth accounting to turn the production function into an additive relationship. 
 # This allows us to separate output growth into the contributions of capital, labor, and TFP. 
 # CAGR measures the average annual compound growth rate. 
 # When annual growth rates are small, it is very close to the log growth rate. 
 # Therefore, we use CAGR in our growth accounting exercise
-# Period 1: 1970 - 1992
-kyoto_growth_output_70_92 = ((kyoto_output_1992 / kyoto_output_1970) ** (1 / years_span_first) - 1) * 100
-kyoto_growth_capital_70_92 = ((kyoto_capital_1992 / kyoto_capital_1970) ** (1 / years_span_first) - 1) * 100
-kyoto_growth_labor_70_92 = ((kyoto_labor_1992 / kyoto_labor_1970) ** (1 / years_span_first) - 1) * 100
+# Period 1: 1972 - 1992
+kyoto_growth_output_72_92 = ((kyoto_output_1992 / kyoto_output_1972) ** (1 / years_span_first) - 1) * 100
+kyoto_growth_capital_72_92 = ((kyoto_capital_1992 / kyoto_capital_1972) ** (1 / years_span_first) - 1) * 100
+kyoto_growth_labor_72_92 = ((kyoto_labor_1992 / kyoto_labor_1972) ** (1 / years_span_first) - 1) * 100
 
 # Period 2: 1992 - 2012
 kyoto_growth_output_92_12 = ((kyoto_output_2012 / kyoto_output_1992) ** (1 / years_span_second) - 1) * 100
@@ -91,10 +94,10 @@ kyoto_growth_labor_92_12 = ((kyoto_labor_2012 / kyoto_labor_1992) ** (1 / years_
 
 #Tokyo
 
-# Period 1: 1970 - 1992
-tokyo_growth_output_70_92 = ((tokyo_output_1992 / tokyo_output_1970) ** (1 / years_span_first) - 1) * 100
-tokyo_growth_capital_70_92 = ((tokyo_capital_1992 / tokyo_capital_1970) ** (1 / years_span_first) - 1) * 100
-tokyo_growth_labor_70_92 = ((tokyo_labor_1992 / tokyo_labor_1970) ** (1 / years_span_first) - 1) * 100
+# Period 1: 1972 - 1992
+tokyo_growth_output_72_92 = ((tokyo_output_1992 / tokyo_output_1972) ** (1 / years_span_first) - 1) * 100
+tokyo_growth_capital_72_92 = ((tokyo_capital_1992 / tokyo_capital_1972) ** (1 / years_span_first) - 1) * 100
+tokyo_growth_labor_72_92 = ((tokyo_labor_1992 / tokyo_labor_1972) ** (1 / years_span_first) - 1) * 100
 
 # Period 2: 1992 - 2012
 tokyo_growth_output_92_12 = ((tokyo_output_2012 / tokyo_output_1992) ** (1 / years_span_second) - 1) * 100
@@ -105,16 +108,16 @@ tokyo_growth_labor_92_12 = ((tokyo_labor_2012 / tokyo_labor_1992) ** (1 / years_
 # Capital share alpha = 1 - (1-alpha)
 # WL: Labor costs 
 # NV: Nominal value added
-# We use the 2010 factor shares throughout 1970–2012 to keep the weights constant when calculating the contributions of capital and labor to output growth.
+# We use the 2010 factor shares throughout 1972–2012 to keep the weights constant when calculating the contributions of capital and labor to output growth.
 #Kyoto
 kyoto_labor_cost_2010 = kyoto_labor_cost[2010].iloc[0]
 kyoto_nominal_value_2010 = kyoto_nominal_value[2010].iloc[0]
 kyoto_labor_share = kyoto_labor_cost_2010 / kyoto_nominal_value_2010
 kyoto_capital_share = 1.0 - kyoto_labor_share
-# --- Period 1: 1970 - 1992 Growth Accounting ---
-kyoto_capital_contribution_70_92 = kyoto_capital_share * kyoto_growth_capital_70_92
-kyoto_labor_contribution_70_92 = kyoto_labor_share * kyoto_growth_labor_70_92
-kyoto_tfp_growth_70_92 = kyoto_growth_output_70_92 - kyoto_capital_contribution_70_92 - kyoto_labor_contribution_70_92
+# --- Period 1: 1972 - 1992 Growth Accounting ---
+kyoto_capital_contribution_72_92 = kyoto_capital_share * kyoto_growth_capital_72_92
+kyoto_labor_contribution_72_92 = kyoto_labor_share * kyoto_growth_labor_72_92
+kyoto_tfp_growth_72_92 = kyoto_growth_output_72_92 - kyoto_capital_contribution_72_92 - kyoto_labor_contribution_72_92
 
 # --- Period 2: 1992 - 2012 Growth Accounting ---
 kyoto_capital_contribution_92_12 = kyoto_capital_share * kyoto_growth_capital_92_12
@@ -127,10 +130,10 @@ tokyo_nominal_value_2010 = tokyo_nominal_value[2010].iloc[0]
 tokyo_labor_share = tokyo_labor_cost_2010 / tokyo_nominal_value_2010
 tokyo_capital_share = 1.0 - tokyo_labor_share
 
-# --- Period 1: 1970 - 1992 Growth Accounting ---
-tokyo_capital_contribution_70_92 = tokyo_capital_share * tokyo_growth_capital_70_92
-tokyo_labor_contribution_70_92 = tokyo_labor_share * tokyo_growth_labor_70_92
-tokyo_tfp_growth_70_92 = tokyo_growth_output_70_92 - tokyo_capital_contribution_70_92 - tokyo_labor_contribution_70_92
+# --- Period 1: 1972 - 1992 Growth Accounting ---
+tokyo_capital_contribution_72_92 = tokyo_capital_share * tokyo_growth_capital_72_92
+tokyo_labor_contribution_72_92 = tokyo_labor_share * tokyo_growth_labor_72_92
+tokyo_tfp_growth_72_92 = tokyo_growth_output_72_92 - tokyo_capital_contribution_72_92 - tokyo_labor_contribution_72_92
 
 # --- Period 2: 1992 - 2012 Growth Accounting ---
 tokyo_capital_contribution_92_12 = tokyo_capital_share * tokyo_growth_capital_92_12
@@ -139,9 +142,9 @@ tokyo_tfp_growth_92_12 = tokyo_growth_output_92_12 - tokyo_capital_contribution_
 
 #later change it to excel or latex
 results_summary = pd.DataFrame({
-    "Kyoto (70-92)": [kyoto_growth_output_70_92, kyoto_capital_share, kyoto_capital_contribution_70_92, kyoto_labor_share, kyoto_labor_contribution_70_92, kyoto_tfp_growth_70_92],
+    "Kyoto (72-92)": [kyoto_growth_output_72_92, kyoto_capital_share, kyoto_capital_contribution_72_92, kyoto_labor_share, kyoto_labor_contribution_72_92, kyoto_tfp_growth_72_92],
     "Kyoto (92-12)": [kyoto_growth_output_92_12, kyoto_capital_share, kyoto_capital_contribution_92_12, kyoto_labor_share, kyoto_labor_contribution_92_12, kyoto_tfp_growth_92_12],
-    "Tokyo (70-92)": [tokyo_growth_output_70_92, tokyo_capital_share, tokyo_capital_contribution_70_92, tokyo_labor_share, tokyo_labor_contribution_70_92, tokyo_tfp_growth_70_92],
+    "Tokyo (72-92)": [tokyo_growth_output_72_92, tokyo_capital_share, tokyo_capital_contribution_72_92, tokyo_labor_share, tokyo_labor_contribution_72_92, tokyo_tfp_growth_72_92],
     "Tokyo (92-12)": [tokyo_growth_output_92_12, tokyo_capital_share, tokyo_capital_contribution_92_12, tokyo_labor_share, tokyo_labor_contribution_92_12, tokyo_tfp_growth_92_12]
 }, index=["Real GDP Growth", "Capital Share", "Capital Contribution", "Labor Share", "Labor Contribution", "TFP Growth"])
 

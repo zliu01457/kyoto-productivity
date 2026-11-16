@@ -1,0 +1,300 @@
+#=====================================================================================================================
+# Kyoto shift-share decomposition
+#=======================================================================================================================
+# Growth accounting shows that TFP is the main source of productivity growth
+# but it does not tell us where that growth occurs
+# To answer why Kyoto maintained productivity growth despite a declining workforce
+# Objective: first need to identify the sources of labor productivity growth 
+# To conduct the decomposition, I need to construct follwoing variables: labor productivity, Initial industry labor share, Initial industry labor productivity, Change in industry labor productivity,Change in industry labor share. 
+# In R-JIP, "T" marks the Total row; excluded so it is not counted as a 24th industry
+# Instructions:
+real_value_added_industries = df_real_value_added[(df_real_value_added.iloc[:, 1] == "Kyoto") & (df_real_value_added.iloc[:, 2] != "T")]
+assert len(real_value_added_industries) == 23
+man_hours_industries = df_man_hours[(df_man_hours.iloc[:, 1] == "Kyoto") & (df_man_hours.iloc[:, 2] != "T")]
+assert len(man_hours_industries) == 23
+
+real_value_1992, real_value_2012 = kyoto_output_1992, kyoto_output_2012
+man_hours_1992, man_hours_2012 = kyoto_labor_1992, kyoto_labor_2012
+
+assert np.isclose(real_value_1992, real_value_added_industries[1992].sum())
+assert np.isclose(real_value_2012, real_value_added_industries[2012].sum())
+assert np.isclose(man_hours_1992, man_hours_industries[1992].sum())
+assert np.isclose(man_hours_2012, man_hours_industries[2012].sum())
+
+# Labor input is man-hours, productivity = real value added per man-hour
+Big_X_1992 = real_value_1992 / man_hours_1992
+Big_X_2012 = real_value_2012 / man_hours_2012
+change_in_X = Big_X_2012 - Big_X_1992 
+
+# Calculates each industry's initial labor share as its proportion of total labor input at the beginning of the period
+# serves as the weight for the within-industry effect
+# computing change in share
+# used to calculate the across-effect and interaction effect
+s_i_1992 = pd.Series(man_hours_industries[1992].values, index=man_hours_industries.iloc[:, 3].str.strip()) / man_hours_1992  
+s_i_2012 = pd.Series(man_hours_industries[2012].values, index=man_hours_industries.iloc[:, 3].str.strip()) / man_hours_2012   
+assert np.isclose(s_i_1992.sum(), 1) and np.isclose(s_i_2012.sum(), 1)
+change_in_si = s_i_2012 - s_i_1992 
+# Ensure industry ordering and alignment between value added and man-hours
+assert (real_value_added_industries.iloc[:, 3].str.strip().values == man_hours_industries.iloc[:, 3].str.strip().values).all()
+
+# Calculate the initial productivity level of each industry 
+# serves as the weight for changes in industry labor shares when calculating the across-industry effect
+# computing Change in industry labor productivity
+# used to calculate the within-industry effect and interaction effect
+xi_1992 = pd.Series(real_value_added_industries[1992].values / man_hours_industries[1992].values, index=real_value_added_industries.iloc[:, 3].str.strip())
+xi_2012 = pd.Series(real_value_added_industries[2012].values / man_hours_industries[2012].values, index=real_value_added_industries.iloc[:, 3].str.strip())
+change_in_xi = xi_2012 - xi_1992
+
+# I calculate the within-industry, across-industry, and interaction effects.
+# To connect productivity growth to economic performance, I convert each effect into an AAGR contribution.
+within_effect = s_i_1992 * change_in_xi 
+across_effect = xi_1992 * change_in_si 
+interaction_effect = change_in_si * change_in_xi 
+
+total_within = within_effect.sum()
+total_across = across_effect.sum() 
+total_interaction = interaction_effect.sum() 
+# The three effects must sum to the change in labor productivity.
+assert np.isclose(total_within + total_across + total_interaction, change_in_X)
+
+aagr_change_in_worker = (100 / (man_hours_1992 * n)) * (man_hours_2012 - man_hours_1992)
+scaling_factor = 100 / (Big_X_1992 * n) 
+aagr_within = total_within * scaling_factor 
+aagr_across = total_across * scaling_factor 
+aagr_interaction = total_interaction * scaling_factor 
+# Y = labor term + productivity term x (N1/N0); see Appendix for mathematical derivation
+computed_aagr_Y = aagr_change_in_worker + (aagr_within + aagr_across + aagr_interaction) * (man_hours_2012 / man_hours_1992)
+# Verify that the AAGR calculate from the shift-share decomposition
+# matches the AAGR calculated directly using the standard definition.
+aagr_Y_direct = 100 * (real_value_2012 - real_value_1992) / (real_value_1992 * n) 
+assert np.isclose(computed_aagr_Y, aagr_Y_direct)
+
+
+# Apply the same decomposition to Japan as a whole to compare Kyoto's
+# productivity growth pattern with the national pattern.
+real_value_added_japan_industries = df_real_value_added[(df_real_value_added.iloc[:, 1] == "Total") & (df_real_value_added.iloc[:, 2] != "T")]
+assert len(real_value_added_japan_industries) == 23
+man_hours_japan_industries = df_man_hours[(df_man_hours.iloc[:, 1] == "Total") & (df_man_hours.iloc[:, 2] != "T")]
+assert len(man_hours_japan_industries) == 23
+# Ensure industry ordering and alignment between national value added and man-hours
+assert (real_value_added_japan_industries.iloc[:, 3].str.strip().values == man_hours_japan_industries.iloc[:, 3].str.strip().values).all()
+japan_industry_names = real_value_added_japan_industries.iloc[:, 3].str.strip().values
+
+man_hours_1992_japan_industries = man_hours_japan_industries[1992].values
+man_hours_2012_japan_industries = man_hours_japan_industries[2012].values 
+real_value_1992_japan_industries = real_value_added_japan_industries[1992].values 
+real_value_2012_japan_industries = real_value_added_japan_industries[2012].values
+
+# Extract national aggregate (Total) real value added and man-hours for Japan
+real_value_added_japan_total = df_real_value_added[(df_real_value_added.iloc[:, 1] == "Total") & (df_real_value_added.iloc[:, 2] == "T")]
+man_hours_japan_total = df_man_hours[(df_man_hours.iloc[:, 1] == "Total") & (df_man_hours.iloc[:, 2] == "T")]
+# Ensure one national aggregate entry
+assert len(real_value_added_japan_total) == 1 and len(man_hours_japan_total) == 1  
+
+real_value_1992_japan, real_value_2012_japan = real_value_added_japan_total[1992].iloc[0], real_value_added_japan_total[2012].iloc[0]
+man_hours_1992_japan, man_hours_2012_japan = man_hours_japan_total[1992].iloc[0], man_hours_japan_total[2012].iloc[0]
+# Ensure that the national aggregate totals exactly match the sum of the 23 sub-industries
+assert np.isclose(real_value_1992_japan, real_value_1992_japan_industries.sum()) and np.isclose(real_value_2012_japan, real_value_2012_japan_industries.sum()) 
+assert np.isclose(man_hours_1992_japan, man_hours_1992_japan_industries.sum()) and np.isclose(man_hours_2012_japan, man_hours_2012_japan_industries.sum())
+
+# producivity 
+Big_X_1992_jap = real_value_1992_japan / man_hours_1992_japan  
+Big_X_2012_jap = real_value_2012_japan / man_hours_2012_japan 
+# share of emploment 
+s_i_1992_japan = pd.Series(man_hours_1992_japan_industries, index=japan_industry_names) / man_hours_1992_japan
+s_i_2012_japan = pd.Series(man_hours_2012_japan_industries, index=japan_industry_names) / man_hours_2012_japan
+change_in_si_japan = s_i_2012_japan - s_i_1992_japan
+
+# industry producivity 
+xi_1992_japan = pd.Series(real_value_1992_japan_industries / man_hours_1992_japan_industries, index=japan_industry_names)
+xi_2012_japan = pd.Series(real_value_2012_japan_industries / man_hours_2012_japan_industries, index=japan_industry_names)
+change_in_xi_japan = xi_2012_japan - xi_1992_japan
+# Verify aggregation consistency: weighted sum of industry productivities must equal macro aggregate productivity
+assert np.isclose((s_i_1992_japan * xi_1992_japan).sum(), Big_X_1992_jap) 
+assert np.isclose((s_i_2012_japan * xi_2012_japan).sum(), Big_X_2012_jap)
+
+# Japan decomposition and converting to aagr
+within_effect_jap = s_i_1992_japan * change_in_xi_japan
+across_effect_jap = xi_1992_japan * change_in_si_japan
+interaction_effect_jap = change_in_si_japan * change_in_xi_japan
+
+total_within_jap = within_effect_jap.sum() 
+total_across_jap = across_effect_jap.sum() 
+total_interaction_jap = interaction_effect_jap.sum() 
+
+
+change_in_X_jap = Big_X_2012_jap - Big_X_1992_jap 
+#check, Verify that the sum of the three shift-share components equals total productivity change 
+assert np.isclose(total_within_jap + total_across_jap + total_interaction_jap, change_in_X_jap) 
+
+aagr_change_in_worker_jap = (100 / (man_hours_1992_japan * n)) * (man_hours_2012_japan - man_hours_1992_japan)
+scaling_factor_jap = 100 / (Big_X_1992_jap * n) 
+aagr_within_jap = total_within_jap * scaling_factor_jap 
+aagr_across_jap = total_across_jap * scaling_factor_jap
+aagr_interaction_jap = total_interaction_jap * scaling_factor_jap
+computed_aagr_Y_jap = aagr_change_in_worker_jap + (aagr_within_jap + aagr_across_jap + aagr_interaction_jap) * (man_hours_2012_japan / man_hours_1992_japan)
+aagr_Y_direct_japan = 100 * (real_value_2012_japan - real_value_1992_japan) / (real_value_1992_japan * n)   # compute aagr y using aagr definition
+# check, the two answer should be the same 
+assert np.isclose(computed_aagr_Y_jap, aagr_Y_direct_japan) 
+
+# 6. Result come back and fix it later 
+for name, w, a, i, lab, gdp in [
+    ("Kyoto", aagr_within, aagr_across, aagr_interaction, aagr_change_in_worker, aagr_Y_direct),
+    ("Japan", aagr_within_jap, aagr_across_jap, aagr_interaction_jap, aagr_change_in_worker_jap, aagr_Y_direct_japan),
+]:
+    print(f"{name}: within {w:.2f}  across {a:.2f}  interaction {i:.2f} | labor productivity {w+a+i:.2f}  labor {lab:.2f}  GDP {gdp:.2f}")
+
+# I want to know Industry share of within effect, to see which industry contribute the most 
+industry_share_of_within_percent = (within_effect / total_within) * 100
+df_kyoto_within_shares = pd.DataFrame({
+    "Share_of_Total_Within_Percent": industry_share_of_within_percent
+}).sort_values(by="Share_of_Total_Within_Percent", ascending=False)
+assert np.isclose(df_kyoto_within_shares["Share_of_Total_Within_Percent"].sum(), 100.0)
+print("\nTop 5 Industries by Share of Within Effect:")
+print(df_kyoto_within_shares.head(5).round(2))
+
+#=====================================================================================================================
+# Shift-share decomposition for all 47 prefectures
+#=====================================================================================================================
+# Explain why I wanted to do it 
+# Instrucitons: 
+# Apply the same decomposition used above to each prefecture.
+# The aggregate row marked "T" is excluded from the 23 industry rows.
+prefecture_names = sorted(
+    name for name in df_real_value_added.iloc[:, 1].dropna().unique()
+    if name != "Total"
+)
+assert len(prefecture_names) == 47
+
+prefecture_decomposition_results = []
+prefecture_within_effects = {}
+
+for prefecture in prefecture_names:
+    real_value_added_prefecture_industries = df_real_value_added[
+        (df_real_value_added.iloc[:, 1] == prefecture)
+        & (df_real_value_added.iloc[:, 2] != "T")
+    ]
+    man_hours_prefecture_industries = df_man_hours[
+        (df_man_hours.iloc[:, 1] == prefecture)
+        & (df_man_hours.iloc[:, 2] != "T")
+    ]
+    assert len(real_value_added_prefecture_industries) == 23
+    assert len(man_hours_prefecture_industries) == 23
+    assert (
+        real_value_added_prefecture_industries.iloc[:, 3].str.strip().values
+        == man_hours_prefecture_industries.iloc[:, 3].str.strip().values
+    ).all()
+
+    # Extract aggregate (Total) real value added and man-hours
+    real_value_added_prefecture_total = df_real_value_added[
+        (df_real_value_added.iloc[:, 1] == prefecture)
+        & (df_real_value_added.iloc[:, 2] == "T")
+    ]
+    man_hours_prefecture_total = df_man_hours[
+        (df_man_hours.iloc[:, 1] == prefecture)
+        & (df_man_hours.iloc[:, 2] == "T")
+    ]
+    assert len(real_value_added_prefecture_total) == 1
+    assert len(man_hours_prefecture_total) == 1
+
+    real_value_1992_prefecture = real_value_added_prefecture_total[1992].iloc[0]
+    real_value_2012_prefecture = real_value_added_prefecture_total[2012].iloc[0]
+    man_hours_1992_prefecture = man_hours_prefecture_total[1992].iloc[0]
+    man_hours_2012_prefecture = man_hours_prefecture_total[2012].iloc[0]
+
+    real_value_1992_prefecture_industries = real_value_added_prefecture_industries[1992].values
+    real_value_2012_prefecture_industries = real_value_added_prefecture_industries[2012].values
+    man_hours_1992_prefecture_industries = man_hours_prefecture_industries[1992].values
+    man_hours_2012_prefecture_industries = man_hours_prefecture_industries[2012].values
+    prefecture_industry_names = real_value_added_prefecture_industries.iloc[:, 3].str.strip().values
+
+    # Check that the aggregate values match the sum of the 23 industries
+    assert np.isclose(real_value_1992_prefecture, real_value_1992_prefecture_industries.sum())
+    assert np.isclose(real_value_2012_prefecture, real_value_2012_prefecture_industries.sum())
+    assert np.isclose(man_hours_1992_prefecture, man_hours_1992_prefecture_industries.sum())
+    assert np.isclose(man_hours_2012_prefecture, man_hours_2012_prefecture_industries.sum())
+
+    # Labor productivity and industry labor shares
+    Big_X_1992_prefecture = real_value_1992_prefecture / man_hours_1992_prefecture
+    Big_X_2012_prefecture = real_value_2012_prefecture / man_hours_2012_prefecture
+    s_i_1992_prefecture = pd.Series(
+        man_hours_1992_prefecture_industries, index=prefecture_industry_names
+    ) / man_hours_1992_prefecture
+    s_i_2012_prefecture = pd.Series(
+        man_hours_2012_prefecture_industries, index=prefecture_industry_names
+    ) / man_hours_2012_prefecture
+    change_in_si_prefecture = s_i_2012_prefecture - s_i_1992_prefecture
+    assert np.isclose(s_i_1992_prefecture.sum(), 1)
+    assert np.isclose(s_i_2012_prefecture.sum(), 1)
+
+    # Industry productivity and its change
+    xi_1992_prefecture = pd.Series(
+        real_value_1992_prefecture_industries / man_hours_1992_prefecture_industries,
+        index=prefecture_industry_names,
+    )
+    xi_2012_prefecture = pd.Series(
+        real_value_2012_prefecture_industries / man_hours_2012_prefecture_industries,
+        index=prefecture_industry_names,
+    )
+    change_in_xi_prefecture = xi_2012_prefecture - xi_1992_prefecture
+
+    # Within-industry, across-industry, and interaction effects
+    within_effect_prefecture = s_i_1992_prefecture * change_in_xi_prefecture
+    across_effect_prefecture = xi_1992_prefecture * change_in_si_prefecture
+    interaction_effect_prefecture = change_in_si_prefecture * change_in_xi_prefecture
+    total_within_prefecture = within_effect_prefecture.sum()
+    total_across_prefecture = across_effect_prefecture.sum()
+    total_interaction_prefecture = interaction_effect_prefecture.sum()
+    change_in_X_prefecture = Big_X_2012_prefecture - Big_X_1992_prefecture
+    assert np.isclose(
+        total_within_prefecture + total_across_prefecture + total_interaction_prefecture,
+        change_in_X_prefecture,
+    )
+
+    # Convert each effect to an AAGR contribution using the existing n
+    aagr_change_in_worker_prefecture = (
+        100 / (man_hours_1992_prefecture * n)
+    ) * (man_hours_2012_prefecture - man_hours_1992_prefecture)
+    scaling_factor_prefecture = 100 / (Big_X_1992_prefecture * n)
+    aagr_within_prefecture = total_within_prefecture * scaling_factor_prefecture
+    aagr_across_prefecture = total_across_prefecture * scaling_factor_prefecture
+    aagr_interaction_prefecture = total_interaction_prefecture * scaling_factor_prefecture
+    computed_aagr_Y_prefecture = aagr_change_in_worker_prefecture + (
+        aagr_within_prefecture
+        + aagr_across_prefecture
+        + aagr_interaction_prefecture
+    ) * (man_hours_2012_prefecture / man_hours_1992_prefecture)
+    aagr_Y_direct_prefecture = (
+        100 * (real_value_2012_prefecture - real_value_1992_prefecture)
+        / (real_value_1992_prefecture * n)
+    )
+    assert np.isclose(computed_aagr_Y_prefecture, aagr_Y_direct_prefecture)
+
+    prefecture_within_effects[prefecture] = within_effect_prefecture
+    prefecture_decomposition_results.append({
+        "Prefecture": prefecture,
+        "Within": aagr_within_prefecture,
+        "Across": aagr_across_prefecture,
+        "Interaction": aagr_interaction_prefecture,
+        "Labor": aagr_change_in_worker_prefecture,
+        "Labor_Productivity": aagr_within_prefecture + aagr_across_prefecture + aagr_interaction_prefecture,
+        "GDP": aagr_Y_direct_prefecture,
+    })
+
+# Display the decomposition results for all 47 prefectures
+df_prefecture_decomposition = pd.DataFrame(prefecture_decomposition_results).set_index("Prefecture")
+print("\nShift-share decomposition for all 47 prefectures:")
+print(df_prefecture_decomposition.round(2))
+
+# Industry shares of the within effect for each prefecture
+prefecture_within_shares = {}
+for prefecture, within_effect_prefecture in prefecture_within_effects.items():
+    total_within_prefecture = within_effect_prefecture.sum()
+    if not np.isclose(total_within_prefecture, 0):
+        prefecture_within_shares[prefecture] = (within_effect_prefecture / total_within_prefecture) * 100
+    else:
+        prefecture_within_shares[prefecture] = pd.Series(
+            np.nan, index=within_effect_prefecture.index
+        )
+df_prefecture_within_shares = pd.DataFrame(prefecture_within_shares)
+
